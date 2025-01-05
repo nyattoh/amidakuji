@@ -53,6 +53,16 @@ function init() {
     spacing = canvas.width / (verticalLines + 1);
     verticalPositions.length = 0;
 
+    // 開始ポイントのボタンを作成
+    startPoints.innerHTML = '';
+    for (let i = 0; i < verticalLines; i++) {
+        const button = document.createElement('button');
+        button.textContent = `スタート ${i + 1}`;
+        button.classList.add('start-btn');
+        button.addEventListener('click', () => startAnimation(i));
+        startPoints.appendChild(button);
+    }
+
     // キャンバスをクリア
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
@@ -102,7 +112,12 @@ function drawHorizontalLine(x1, x2, y) {
 // 既存の線と重なっていないかチェック
 function isLineOverlapping(y) {
     const threshold = 20; // 最小の垂直距離
-    return horizontalLines.some(line => Math.abs(line.y - y) < threshold);
+    for (const line of horizontalLines) {
+        if (Math.abs(line.y - y) < threshold) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // クリックした位置が縦線の近くかチェック
@@ -143,6 +158,14 @@ canvas.addEventListener('click', (e) => {
     let x1, x2;
     const clickOffset = x - nearestX;
     
+    // 横線が既に存在するかチェック
+    const existingLine = horizontalLines.find(line => 
+        Math.abs(line.y - y) < 20 && 
+        ((line.x1 === verticalPositions[lineIndex - 1] && line.x2 === nearestX) ||
+         (line.x1 === nearestX && line.x2 === verticalPositions[lineIndex + 1]))
+    );
+    if (existingLine) return;
+
     if (clickOffset < 0 && lineIndex > 0) {
         // 左側の線を引く
         x1 = verticalPositions[lineIndex - 1];
