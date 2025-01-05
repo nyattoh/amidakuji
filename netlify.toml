@@ -3,8 +3,8 @@
   functions = "netlify/functions"
 
 [[redirects]]
-  from = "/socket.io/*"
-  to = "/.netlify/functions/socketio-handler"
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
   status = 200
 
 [[redirects]]
