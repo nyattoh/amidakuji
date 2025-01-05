@@ -195,7 +195,6 @@ socket.on('newLine', (lineData) => {
 });
 
 // アニメーション用の変数
-let currentPath = [];
 let animationFrameId = null;
 
 // パスをトレースするアニメーション
@@ -205,78 +204,73 @@ function startAnimation(startIndex) {
     // 既存のアニメーションをキャンセル
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
     }
     
-    currentPath = [];
+    // 現在の位置
     let currentX = verticalPositions[startIndex];
     let currentY = 0;
-    let pathPoints = [];
     
-    // パスを計算
-    while (currentY < canvas.height) {
-        pathPoints.push({ x: currentX, y: currentY });
+    // キャンバスをクリア
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 縦線を再描画
+    drawVerticalLines();
+    
+    // 横線を再描画
+    horizontalLines.forEach(line => {
+        drawHorizontalLine(line.x1, line.x2, line.y);
+    });
+    
+    // アニメーションの状態
+    let lastY = 0;
+    const speed = 2;
+    
+    // アニメーション関数
+    function animate() {
+        // 赤い線を描画
+        ctx.beginPath();
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 3;
+        
+        // 前回の位置から現在の位置まで線を引く
+        ctx.moveTo(currentX, lastY);
+        ctx.lineTo(currentX, currentY);
+        ctx.stroke();
         
         // 交差する横線を探す
         const intersectingLine = horizontalLines.find(line => 
-            Math.abs(line.y - currentY) < 10 && 
-            (Math.abs(line.x1 - currentX) < 2 || Math.abs(line.x2 - currentX) < 2)
+            Math.abs(line.y - currentY) < 5 && 
+            (Math.abs(line.x1 - currentX) < 5 || Math.abs(line.x2 - currentX) < 5)
         );
         
         if (intersectingLine) {
             // 横線に沿って移動
-            currentX = Math.abs(intersectingLine.x1 - currentX) < 2 ? intersectingLine.x2 : intersectingLine.x1;
-            currentY = intersectingLine.y;
-        } else {
-            currentY += 2;
-        }
-    }
-    
-    // 最終位置を追加
-    pathPoints.push({ x: currentX, y: canvas.height });
-    
-    // アニメーションの状態
-    let progress = 0;
-    const animationDuration = 1000; // 1秒
-    const startTime = performance.now();
-    
-    // アニメーション関数
-    function animate(currentTime) {
-        const elapsed = currentTime - startTime;
-        progress = Math.min(elapsed / animationDuration, 1);
-        
-        // キャンバスをクリア
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // 縦線を再描画
-        drawVerticalLines();
-        
-        // 横線を再描画
-        horizontalLines.forEach(line => {
-            drawHorizontalLine(line.x1, line.x2, line.y);
-        });
-        
-        // パスを描画
-        const currentPoint = Math.floor(progress * pathPoints.length);
-        
-        if (currentPoint > 0) {
+            const nextX = Math.abs(intersectingLine.x1 - currentX) < 5 ? intersectingLine.x2 : intersectingLine.x1;
+            
+            // 横線を赤く描画
             ctx.beginPath();
             ctx.strokeStyle = '#ff0000';
             ctx.lineWidth = 3;
-            
-            ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
-            for (let i = 1; i <= currentPoint; i++) {
-                ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
-            }
+            ctx.moveTo(currentX, currentY);
+            ctx.lineTo(nextX, currentY);
             ctx.stroke();
+            
+            currentX = nextX;
         }
         
-        if (progress < 1) {
+        // 次の位置を計算
+        lastY = currentY;
+        currentY += speed;
+        
+        // アニメーションを続けるかどうか判定
+        if (currentY <= canvas.height) {
             animationFrameId = requestAnimationFrame(animate);
         }
     }
     
     // アニメーションを開始
-    animationFrameId = requestAnimationFrame(animate);
+    animate();
 }
 
 // 終了ボタンのイベント
