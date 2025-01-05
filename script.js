@@ -1,4 +1,6 @@
-const socket = io();
+const socket = io({
+    path: '/socket.io'
+});
 const canvas = document.getElementById('amidakuji-canvas');
 const ctx = canvas.getContext('2d');
 const startPoints = document.getElementById('start-points');

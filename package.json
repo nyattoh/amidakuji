@@ -2,21 +2,14 @@
     "name": "amidakuji",
     "version": "1.0.0",
     "description": "Interactive Amidakuji Web Application",
-    "main": "netlify/functions/socketio-handler.js",
+    "main": "server.js",
     "scripts": {
-        "start": "netlify dev",
-        "build": "netlify build",
-        "dev": "netlify dev"
+        "start": "node server.js",
+        "build": "echo 'No build required'"
     },
     "dependencies": {
-        "@netlify/functions": "^3.0.0",
         "express": "^4.18.2",
-        "faunadb": "^4.8.2",
         "socket.io": "^4.7.2",
         "ws": "^8.13.0"
-    },
-    "devDependencies": {
-        "netlify-cli": "^12.0.0",
-        "nodemon": "^2.0.22"
     }
 }
