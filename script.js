@@ -1,4 +1,8 @@
-const socket = io();
+// Socket.IOの設定を更新
+const socket = io('/.netlify/functions/socketio-handler', {
+    path: '/socket.io',
+    transports: ['websocket', 'polling']
+});
 const canvas = document.getElementById('amidakuji-canvas');
 const ctx = canvas.getContext('2d');
 const startPoints = document.getElementById('start-points');
