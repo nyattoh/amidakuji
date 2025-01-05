@@ -98,15 +98,33 @@ h1 {
 }
 
 .start-btn {
-    padding: 5px 10px;
-    background-color: #2196F3;
-    color: white;
+    padding: 8px 16px;
+    margin: 0 5px;
     border: none;
     border-radius: 4px;
+    background-color: #2196F3;
+    color: white;
     cursor: pointer;
     display: none;
+    transition: all 0.3s ease;
 }
 
 .start-btn:hover {
     background-color: #1976D2;
+}
+
+.start-btn.active {
+    display: inline-block;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 } 

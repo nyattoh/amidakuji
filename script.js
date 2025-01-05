@@ -53,16 +53,6 @@ function init() {
     spacing = canvas.width / (verticalLines + 1);
     verticalPositions.length = 0;
 
-    // 開始ポイントのボタンを作成
-    startPoints.innerHTML = '';
-    for (let i = 0; i < verticalLines; i++) {
-        const button = document.createElement('button');
-        button.textContent = `スタート ${i + 1}`;
-        button.classList.add('start-btn');
-        button.addEventListener('click', () => startAnimation(i));
-        startPoints.appendChild(button);
-    }
-
     // キャンバスをクリア
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
@@ -77,7 +67,10 @@ function init() {
     
     // スタートボタンを非表示
     const startButtons = document.querySelectorAll('.start-btn');
-    startButtons.forEach(btn => btn.style.display = 'none');
+    startButtons.forEach(btn => {
+        btn.style.display = 'none';
+        btn.classList.remove('active');
+    });
 }
 
 // 縦線を描画
@@ -114,7 +107,18 @@ function isLineOverlapping(y) {
 
 // クリックした位置が縦線の近くかチェック
 function getNearestVerticalLine(x) {
-    return verticalPositions.find(pos => Math.abs(pos - x) < 20);
+    let nearest = null;
+    let minDistance = Infinity;
+    
+    verticalPositions.forEach(pos => {
+        const distance = Math.abs(pos - x);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearest = pos;
+        }
+    });
+    
+    return nearest;
 }
 
 // クリックイベントの処理
@@ -137,11 +141,13 @@ canvas.addEventListener('click', (e) => {
     if (lineIndex === -1) return;
 
     let x1, x2;
-    if (x < nearestX && lineIndex > 0) {
+    const clickOffset = x - nearestX;
+    
+    if (clickOffset < 0 && lineIndex > 0) {
         // 左側の線を引く
         x1 = verticalPositions[lineIndex - 1];
         x2 = nearestX;
-    } else if (x > nearestX && lineIndex < verticalPositions.length - 1) {
+    } else if (clickOffset > 0 && lineIndex < verticalPositions.length - 1) {
         // 右側の線を引く
         x1 = nearestX;
         x2 = verticalPositions[lineIndex + 1];
@@ -171,7 +177,8 @@ let animationFrame = 0;
 
 // パスをトレースするアニメーション
 function startAnimation(startIndex) {
-    showingResults = true;
+    if (!showingResults) return;
+    
     currentPath = [];
     animationFrame = 0;
     
@@ -186,12 +193,12 @@ function startAnimation(startIndex) {
         // 交差する横線を探す
         const intersectingLine = horizontalLines.find(line => 
             Math.abs(line.y - currentY) < 5 && 
-            (line.x1 === currentX || line.x2 === currentX)
+            (Math.abs(line.x1 - currentX) < 5 || Math.abs(line.x2 - currentX) < 5)
         );
         
         if (intersectingLine) {
             // 横線に沿って移動
-            currentX = intersectingLine.x1 === currentX ? intersectingLine.x2 : intersectingLine.x1;
+            currentX = Math.abs(intersectingLine.x1 - currentX) < 5 ? intersectingLine.x2 : intersectingLine.x1;
             currentY = intersectingLine.y;
         }
         
@@ -199,7 +206,7 @@ function startAnimation(startIndex) {
     }
     
     // アニメーションを開始
-    animatePath();
+    requestAnimationFrame(animatePath);
 }
 
 // パスのアニメーション
@@ -240,7 +247,10 @@ function animatePath() {
 finishBtn.addEventListener('click', () => {
     showingResults = true;
     const startButtons = document.querySelectorAll('.start-btn');
-    startButtons.forEach(btn => btn.style.display = 'inline-block');
+    startButtons.forEach(btn => {
+        btn.style.display = 'inline-block';
+        btn.classList.add('active');
+    });
     socket.emit('finish');
 });
 
@@ -254,7 +264,10 @@ resetBtn.addEventListener('click', () => {
 socket.on('finish', () => {
     showingResults = true;
     const startButtons = document.querySelectorAll('.start-btn');
-    startButtons.forEach(btn => btn.style.display = 'inline-block');
+    startButtons.forEach(btn => {
+        btn.style.display = 'inline-block';
+        btn.classList.add('active');
+    });
 });
 
 // 他のクライアントがリセットしたときの処理
