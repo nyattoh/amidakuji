@@ -1,60 +1,29 @@
-// APIエンドポイント
-const API_URL = '/.netlify/functions/api';
-
-// ゲームの状態を取得
-async function getGameState() {
-    const response = await fetch(API_URL);
-    return await response.json();
-}
-
-// ゲームの状態を更新
-async function updateGameState(newState) {
-    const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newState)
-    });
-    return await response.json();
-}
-
-// 定期的に状態を更新（ポーリング）
-async function pollGameState() {
-    const state = await getGameState();
-    if (JSON.stringify(state.lines) !== JSON.stringify(lines)) {
-        lines = state.lines;
-        redrawCanvas();
-    }
-    if (state.showingResults !== showingResults) {
-        showingResults = state.showingResults;
-        if (showingResults) {
-            showStartButtons();
-        }
-    }
-}
-
-// 1秒ごとに状態を更新
-setInterval(pollGameState, 1000);
-
+const socket = io();
 const canvas = document.getElementById('amidakuji-canvas');
 const ctx = canvas.getContext('2d');
 const startPoints = document.getElementById('start-points');
 const finishBtn = document.getElementById('finish-btn');
+const resetBtn = document.getElementById('reset-btn');
 
-// キャンバスのサイズ設定
-canvas.width = 600;
-canvas.height = 400;
+// キャンバスのサイズをDOMのサイズに合わせる
+function resizeCanvas() {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+}
+
+// 初期化時とウィンドウリサイズ時にキャンバスサイズを調整
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
 // 縦線の数と間隔
 const verticalLines = 4;
-const spacing = canvas.width / (verticalLines + 1);
+let spacing;
 
 // 縦線の位置を保存する配列
 const verticalPositions = [];
 
-// 描画された線を保存する配列
-let lines = [];
+// 横線の情報を保存する配列
+let horizontalLines = [];
 
 // マウスの状態
 let isDrawing = false;
@@ -63,45 +32,43 @@ let startX, startY;
 // 結果表示モード
 let showingResults = false;
 
-// リセットボタンの要素を取得
-const resetBtn = document.getElementById('reset-btn');
-
 // 初期化
 function init() {
+    // 縦線の間隔を計算
+    spacing = canvas.width / (verticalLines + 1);
+    verticalPositions.length = 0;
+
     // 開始ポイントのボタンを作成
+    startPoints.innerHTML = '';
     for (let i = 0; i < verticalLines; i++) {
         const button = document.createElement('button');
         button.textContent = `スタート ${i + 1}`;
-        button.style.display = 'none';
+        button.classList.add('start-btn');
         button.addEventListener('click', () => startAnimation(i));
         startPoints.appendChild(button);
     }
 
+    // キャンバスをクリア
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
     // 縦線を描画
     drawVerticalLines();
-}
-
-// キャンバスを再描画
-function redrawCanvas() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawVerticalLines();
     
-    // 保存された線を描画
-    lines.forEach(line => {
-        ctx.beginPath();
-        ctx.moveTo(line.startX, line.startY);
-        ctx.lineTo(line.endX, line.endY);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    });
+    // 横線の配列をリセット
+    horizontalLines = [];
+    
+    // 結果表示モードをリセット
+    showingResults = false;
+    
+    // スタートボタンを非表示
+    const startButtons = document.querySelectorAll('.start-btn');
+    startButtons.forEach(btn => btn.style.display = 'none');
 }
 
 // 縦線を描画
 function drawVerticalLines() {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 2;
-    verticalPositions.length = 0;  // 配列をクリア
 
     for (let i = 1; i <= verticalLines; i++) {
         const x = i * spacing;
@@ -114,164 +81,179 @@ function drawVerticalLines() {
     }
 }
 
-// 線の重なりをチェック（横に連続していない場合は許可）
-function isLineOverlapping(y, x1, x2) {
-    return lines.some(line => {
-        // Y座標が近い線を検出
-        if (Math.abs(line.startY - y) < 20) {
-            // X座標の範囲が重なっているかチェック
-            const lineLeft = Math.min(line.startX, line.endX);
-            const lineRight = Math.max(line.startX, line.endX);
-            const newLeft = Math.min(x1, x2);
-            const newRight = Math.max(x1, x2);
-
-            // 線が重なっているかチェック
-            return (newLeft <= lineRight && newRight >= lineLeft);
-        }
-        return false;
-    });
+// 横線を描画
+function drawHorizontalLine(x1, x2, y) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x2, y);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
 }
 
-// 線を追加する処理を修正
-async function addLine(line) {
-    lines.push(line);
-    await updateGameState({ lines, showingResults });
-    redrawCanvas();
+// 既存の線と重なっていないかチェック
+function isLineOverlapping(y) {
+    const threshold = 20; // 最小の垂直距離
+    return horizontalLines.some(line => Math.abs(line.y - y) < threshold);
 }
 
-// startDrawing関数を修正
-function startDrawing(e) {
-    if (showingResults) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const nearestLines = findNearestVerticalLines(mouseX);
-    if (nearestLines.length === 2) {
-        const [x1, x2] = nearestLines.sort((a, b) => a - b);
-        
-        if (!isLineOverlapping(mouseY, x1, x2)) {
-            const line = {
-                startX: x1,
-                startY: mouseY,
-                endX: x2,
-                endY: mouseY
-            };
-            
-            addLine(line);
-        }
-    }
-}
-
-// クリックした位置から最も近い2つの縦線を見つける
-function findNearestVerticalLines(x) {
-    // クリック位置の左右にある縦線を探す
-    const leftLines = verticalPositions.filter(pos => pos < x);
-    const rightLines = verticalPositions.filter(pos => pos > x);
-
-    if (leftLines.length === 0 || rightLines.length === 0) return [];
-
-    // 最も近い左右の縦線を取得
-    const nearestLeft = Math.max(...leftLines);
-    const nearestRight = Math.min(...rightLines);
-
-    // クリック位置が縦線間の中央付近にある場合のみ有効
-    const distance = nearestRight - nearestLeft;
-    const clickOffset = x - nearestLeft;
-    if (clickOffset > distance * 0.2 && clickOffset < distance * 0.8) {
-        return [nearestLeft, nearestRight];
-    }
-
-    return [];
-}
-
-// 最も近い縦線のX座標を取得
+// クリックした位置が縦線の近くかチェック
 function getNearestVerticalLine(x) {
-    return verticalPositions.reduce((nearest, current) => {
-        return Math.abs(current - x) < Math.abs(nearest - x) ? current : nearest;
-    });
+    return verticalPositions.find(pos => Math.abs(pos - x) < 20);
 }
 
-// 縦線との距離をチェック
-function isNearVerticalLine(x) {
-    return verticalPositions.some(pos => Math.abs(x - pos) < 10);
-}
+// クリックイベントの処理
+canvas.addEventListener('click', (e) => {
+    if (showingResults) return;
 
-// 他のユーザーが描いた線を表示
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // 既存の線と重なっていないかチェック
+    if (isLineOverlapping(y)) return;
+
+    // クリックした位置に最も近い縦線を見つける
+    const nearestX = getNearestVerticalLine(x);
+    if (!nearestX) return;
+
+    // クリックした位置が2本の縦線の間にあるかチェック
+    const lineIndex = verticalPositions.indexOf(nearestX);
+    if (lineIndex === -1) return;
+
+    let x1, x2;
+    if (x < nearestX && lineIndex > 0) {
+        // 左側の線を引く
+        x1 = verticalPositions[lineIndex - 1];
+        x2 = nearestX;
+    } else if (x > nearestX && lineIndex < verticalPositions.length - 1) {
+        // 右側の線を引く
+        x1 = nearestX;
+        x2 = verticalPositions[lineIndex + 1];
+    } else {
+        return;
+    }
+
+    // 横線を描画
+    drawHorizontalLine(x1, x2, y);
+    
+    // 線の情報を保存
+    horizontalLines.push({ x1, x2, y });
+    
+    // WebSocketで他のクライアントに通知
+    socket.emit('drawLine', { x1, x2, y });
+});
+
+// 他のクライアントが描いた線を表示
 socket.on('newLine', (lineData) => {
-    lines.push(lineData);
-    redrawCanvas();
+    drawHorizontalLine(lineData.x1, lineData.x2, lineData.y);
+    horizontalLines.push(lineData);
+});
+
+// アニメーション用の変数
+let currentPath = [];
+let animationFrame = 0;
+
+// パスをトレースするアニメーション
+function startAnimation(startIndex) {
+    showingResults = true;
+    currentPath = [];
+    animationFrame = 0;
+    
+    // 現在の位置
+    let currentX = verticalPositions[startIndex];
+    let currentY = 0;
+    
+    // パスを計算
+    while (currentY < canvas.height) {
+        currentPath.push({ x: currentX, y: currentY });
+        
+        // 交差する横線を探す
+        const intersectingLine = horizontalLines.find(line => 
+            Math.abs(line.y - currentY) < 5 && 
+            (line.x1 === currentX || line.x2 === currentX)
+        );
+        
+        if (intersectingLine) {
+            // 横線に沿って移動
+            currentX = intersectingLine.x1 === currentX ? intersectingLine.x2 : intersectingLine.x1;
+            currentY = intersectingLine.y;
+        }
+        
+        currentY += 2; // 少しずつ下に移動
+    }
+    
+    // アニメーションを開始
+    animatePath();
+}
+
+// パスのアニメーション
+function animatePath() {
+    if (animationFrame >= currentPath.length - 1) return;
+    
+    // 前のフレームの線を消去
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 縦線を再描画
+    drawVerticalLines();
+    
+    // 横線を再描画
+    horizontalLines.forEach(line => {
+        drawHorizontalLine(line.x1, line.x2, line.y);
+    });
+    
+    // パスを描画
+    ctx.beginPath();
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 3;
+    
+    for (let i = 0; i <= animationFrame; i++) {
+        if (i === 0) {
+            ctx.moveTo(currentPath[i].x, currentPath[i].y);
+        } else {
+            ctx.lineTo(currentPath[i].x, currentPath[i].y);
+        }
+    }
+    
+    ctx.stroke();
+    
+    animationFrame++;
+    requestAnimationFrame(animatePath);
+}
+
+// 終了ボタンのイベント
+finishBtn.addEventListener('click', () => {
+    showingResults = true;
+    const startButtons = document.querySelectorAll('.start-btn');
+    startButtons.forEach(btn => btn.style.display = 'inline-block');
+    socket.emit('finish');
+});
+
+// リセットボタンのイベント
+resetBtn.addEventListener('click', () => {
+    init();
+    socket.emit('reset');
+});
+
+// 他のクライアントが終了したときの処理
+socket.on('finish', () => {
+    showingResults = true;
+    const startButtons = document.querySelectorAll('.start-btn');
+    startButtons.forEach(btn => btn.style.display = 'inline-block');
+});
+
+// 他のクライアントがリセットしたときの処理
+socket.on('reset', () => {
+    init();
 });
 
 // 初期状態の線を表示
-socket.on('init', (serverLines) => {
-    lines = serverLines;
-    redrawCanvas();
+socket.on('init', (lines) => {
+    horizontalLines = lines;
+    lines.forEach(line => {
+        drawHorizontalLine(line.x1, line.x2, line.y);
+    });
 });
-
-// 終了ボタンのイベントを修正
-finishBtn.addEventListener('click', async () => {
-    showingResults = true;
-    await updateGameState({ lines, showingResults });
-    showStartButtons();
-});
-
-// 結果表示モードに切り替え
-socket.on('showResults', () => {
-    showingResults = true;
-    showStartButtons();
-});
-
-// スタートボタンを表示
-function showStartButtons() {
-    const buttons = startPoints.getElementsByTagName('button');
-    for (let button of buttons) {
-        button.style.display = 'inline-block';
-    }
-}
-
-// マウスイベントの設定を変更（クリックのみに）
-canvas.addEventListener('mousedown', startDrawing);
-
-// 初期化時にゲームの状態を取得
-async function initGame() {
-    const state = await getGameState();
-    lines = state.lines;
-    showingResults = state.showingResults;
-    if (showingResults) {
-        showStartButtons();
-    }
-    redrawCanvas();
-}
 
 // 初期化を実行
-init();
-initGame();
-
-// リセット機能を修正
-async function resetGame() {
-    lines = [];
-    showingResults = false;
-    
-    const buttons = startPoints.getElementsByTagName('button');
-    for (let button of buttons) {
-        button.style.display = 'none';
-    }
-    
-    const endPoints = document.querySelectorAll('.end-input');
-    endPoints.forEach(input => {
-        input.style.backgroundColor = '';
-    });
-    
-    await updateGameState({ lines, showingResults });
-    redrawCanvas();
-}
-
-// リセットボタンのイベントリスナー
-resetBtn.addEventListener('click', resetGame);
-
-// サーバーからのリセット通知を受け取る
-socket.on('reset', () => {
-    resetGame();
-}); 
+init(); 
