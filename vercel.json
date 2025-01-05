@@ -10,11 +10,5 @@
     { "src": "/socket.io/(.*)", "dest": "/api/socket.js" },
     { "src": "/", "dest": "/index.html" },
     { "src": "/(.+)", "dest": "/$1" }
-  ],
-  "functions": {
-    "api/**/*.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  }
+  ]
 } 
