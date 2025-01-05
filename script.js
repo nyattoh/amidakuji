@@ -1,5 +1,8 @@
 const socket = io({
-    path: '/socket.io'
+    path: '/socket.io',
+    transports: ['websocket'],
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000
 });
 const canvas = document.getElementById('amidakuji-canvas');
 const ctx = canvas.getContext('2d');
@@ -258,4 +261,20 @@ socket.on('init', (lines) => {
 });
 
 // 初期化を実行
-init(); 
+init();
+
+// Socket.IOの接続設定を更新
+const socket = io({
+    path: '/socket.io',
+    transports: ['websocket'],
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Connection Error:', error);
+});
+
+socket.on('connect', () => {
+    console.log('Connected to server');
+}); 
