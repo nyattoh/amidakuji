@@ -210,6 +210,7 @@ function startAnimation(startIndex) {
     // 現在の位置
     let currentX = verticalPositions[startIndex];
     let currentY = 0;
+    let finalX = currentX;  // 最終位置を保存
     
     // キャンバスをクリア
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -231,7 +232,7 @@ function startAnimation(startIndex) {
         // 赤い線を描画
         ctx.beginPath();
         ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2;  // 線の太さを2pxに変更
         
         // 前回の位置から現在の位置まで線を引く
         ctx.moveTo(currentX, lastY);
@@ -251,12 +252,13 @@ function startAnimation(startIndex) {
             // 横線を赤く描画
             ctx.beginPath();
             ctx.strokeStyle = '#ff0000';
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 2;  // 線の太さを2pxに変更
             ctx.moveTo(currentX, currentY);
             ctx.lineTo(nextX, currentY);
             ctx.stroke();
             
             currentX = nextX;
+            finalX = currentX;  // 最終位置を更新
         }
         
         // 次の位置を計算
@@ -266,6 +268,22 @@ function startAnimation(startIndex) {
         // アニメーションを続けるかどうか判定
         if (currentY <= canvas.height) {
             animationFrameId = requestAnimationFrame(animate);
+        } else {
+            // アニメーション終了時に結果を表示
+            const resultIndex = verticalPositions.indexOf(finalX);
+            if (resultIndex !== -1) {
+                const resultElement = document.querySelector(`.end-input:nth-child(${resultIndex + 1})`);
+                if (resultElement) {
+                    // 他の結果表示をリセット
+                    document.querySelectorAll('.end-input').forEach(el => {
+                        el.style.backgroundColor = 'white';
+                        el.style.color = 'black';
+                    });
+                    // 結果を強調表示
+                    resultElement.style.backgroundColor = '#ff0000';
+                    resultElement.style.color = 'white';
+                }
+            }
         }
     }
     
@@ -296,6 +314,12 @@ resetBtn.addEventListener('click', () => {
     currentPath = [];
     horizontalLines = [];
     showingResults = false;
+    
+    // 結果表示をリセット
+    document.querySelectorAll('.end-input').forEach(el => {
+        el.style.backgroundColor = 'white';
+        el.style.color = 'black';
+    });
     
     // キャンバスをクリア
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -329,6 +353,12 @@ socket.on('reset', () => {
     currentPath = [];
     horizontalLines = [];
     showingResults = false;
+    
+    // 結果表示をリセット
+    document.querySelectorAll('.end-input').forEach(el => {
+        el.style.backgroundColor = 'white';
+        el.style.color = 'black';
+    });
     
     // 初期化を実行
     init();
