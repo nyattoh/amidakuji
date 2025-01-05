@@ -215,26 +215,31 @@ function startAnimation(startIndex) {
         
         // 交差する横線を探す
         const intersectingLine = horizontalLines.find(line => 
-            Math.abs(line.y - currentY) < 5 && 
-            (Math.abs(line.x1 - currentX) < 5 || Math.abs(line.x2 - currentX) < 5)
+            Math.abs(line.y - currentY) < 10 && 
+            (Math.abs(line.x1 - currentX) < 10 || Math.abs(line.x2 - currentX) < 10)
         );
         
         if (intersectingLine) {
             // 横線に沿って移動
-            currentX = Math.abs(intersectingLine.x1 - currentX) < 5 ? intersectingLine.x2 : intersectingLine.x1;
+            currentX = Math.abs(intersectingLine.x1 - currentX) < 10 ? intersectingLine.x2 : intersectingLine.x1;
             currentY = intersectingLine.y;
         }
         
-        currentY += 2; // 少しずつ下に移動
+        currentY += 5; // 移動速度を調整
     }
     
+    // 最終位置を追加
+    currentPath.push({ x: currentX, y: canvas.height });
+    
     // アニメーションを開始
-    requestAnimationFrame(animatePath);
+    animatePath();
 }
 
 // パスのアニメーション
 function animatePath() {
-    if (animationFrame >= currentPath.length - 1) return;
+    if (animationFrame >= currentPath.length - 1) {
+        return;
+    }
     
     // 前のフレームの線を消去
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -263,7 +268,9 @@ function animatePath() {
     ctx.stroke();
     
     animationFrame++;
-    requestAnimationFrame(animatePath);
+    if (animationFrame < currentPath.length) {
+        requestAnimationFrame(animatePath);
+    }
 }
 
 // 終了ボタンのイベント
@@ -279,7 +286,24 @@ finishBtn.addEventListener('click', () => {
 
 // リセットボタンのイベント
 resetBtn.addEventListener('click', () => {
+    // アニメーションをキャンセル
+    if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+    }
+    
+    // 状態をリセット
+    currentPath = [];
+    horizontalLines = [];
+    showingResults = false;
+    
+    // キャンバスをクリア
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 初期化を実行
     init();
+    
+    // 他のクライアントに通知
     socket.emit('reset');
 });
 
@@ -295,6 +319,18 @@ socket.on('finish', () => {
 
 // 他のクライアントがリセットしたときの処理
 socket.on('reset', () => {
+    // アニメーションをキャンセル
+    if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+    }
+    
+    // 状態をリセット
+    currentPath = [];
+    horizontalLines = [];
+    showingResults = false;
+    
+    // 初期化を実行
     init();
 });
 
