@@ -36,4 +36,4 @@ npm install
 npm start
 ```
 
-ブラウザで `http://localhost:3000` にアクセスして利用開始 
+ブラウザで `http://localhost:3000` にアクセスして利用開始
