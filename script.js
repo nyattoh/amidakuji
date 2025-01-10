@@ -2,16 +2,65 @@
 const socket = io({
     path: '/socket.io',
     transports: ['websocket'],
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    timeout: 10000
 });
 
+// 接続エラー時の処理
 socket.on('connect_error', (error) => {
-    console.error('Connection Error:', error);
+    console.error('接続エラー:', error);
+    showErrorMessage('サーバーとの接続が切断されました。再接続を試みています...');
 });
+
+// 再接続時の処理
+socket.on('reconnect', (attemptNumber) => {
+    console.log(`再接続成功 (${attemptNumber}回目の試行)`);
+    hideErrorMessage();
+    // 現在の状態を再取得
+    socket.emit('requestState');
+});
+
+// 再接続失敗時の処理
+socket.on('reconnect_failed', () => {
+    console.error('再接続に失敗しました');
+    showErrorMessage('サーバーとの接続に失敗しました。ページを更新してください。');
+});
+
+// エラーメッセージの表示
+function showErrorMessage(message) {
+    let errorDiv = document.getElementById('error-message');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'error-message';
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ff4444;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 1000;
+        `;
+        document.body.appendChild(errorDiv);
+    }
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+// エラーメッセージの非表示
+function hideErrorMessage() {
+    const errorDiv = document.getElementById('error-message');
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+    }
+}
 
 socket.on('connect', () => {
-    console.log('Connected to server');
+    console.log('サーバーに接続しました');
+    hideErrorMessage();
 });
 
 const canvas = document.getElementById('amidakuji-canvas');
@@ -370,6 +419,31 @@ socket.on('init', (lines) => {
     lines.forEach(line => {
         drawHorizontalLine(line.x1, line.x2, line.y);
     });
+});
+
+// 状態の再取得要求に対する応答
+socket.on('stateUpdate', (state) => {
+    // キャンバスをクリア
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 縦線を再描画
+    drawVerticalLines();
+    
+    // 保存されている横線を再描画
+    horizontalLines = state.lines;
+    horizontalLines.forEach(line => {
+        drawHorizontalLine(line.x1, line.x2, line.y);
+    });
+    
+    // 結果表示モードの更新
+    showingResults = state.showingResults;
+    if (showingResults) {
+        const startButtons = document.querySelectorAll('.start-btn');
+        startButtons.forEach(btn => {
+            btn.style.display = 'inline-block';
+            btn.classList.remove('active');
+        });
+    }
 });
 
 // 初期化を実行

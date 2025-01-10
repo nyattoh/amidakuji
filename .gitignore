@@ -1,0 +1,28 @@
+# 依存関係
+node_modules/
+
+# 環境設定
+.env
+.env.local
+.env.*.local
+
+# ログ
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# エディタ設定
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+
+# アプリケーション固有のファイル
+amidakuji-state.json 
