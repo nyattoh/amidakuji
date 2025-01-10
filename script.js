@@ -1,21 +1,42 @@
 // Socket.IOの接続設定
 const socket = io({
     path: '/socket.io',
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
     reconnectionAttempts: 10,
     reconnectionDelay: 1000,
-    timeout: 10000
+    timeout: 10000,
+    autoConnect: false
 });
+
+// 接続試行回数を追跡
+let connectionAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+// 接続を開始する関数
+function startConnection() {
+    if (!socket.connected) {
+        socket.connect();
+    }
+}
 
 // 接続エラー時の処理
 socket.on('connect_error', (error) => {
     console.error('接続エラー:', error);
-    showErrorMessage('サーバーとの接続が切断されました。再接続を試みています...');
+    connectionAttempts++;
+    
+    if (connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
+        showErrorMessage(`サーバーとの接続が切断されました。再接続を試みています... (${connectionAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        // 5秒後に再接続を試みる
+        setTimeout(startConnection, 5000);
+    } else {
+        showErrorMessage('サーバーとの接続に失敗しました。ページを更新してください。');
+    }
 });
 
 // 再接続時の処理
 socket.on('reconnect', (attemptNumber) => {
     console.log(`再接続成功 (${attemptNumber}回目の試行)`);
+    connectionAttempts = 0;
     hideErrorMessage();
     // 現在の状態を再取得
     socket.emit('requestState');
@@ -43,24 +64,43 @@ function showErrorMessage(message) {
             padding: 10px 20px;
             border-radius: 5px;
             z-index: 1000;
+            transition: opacity 0.3s ease;
         `;
         document.body.appendChild(errorDiv);
     }
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';
+    errorDiv.style.opacity = '1';
 }
 
 // エラーメッセージの非表示
 function hideErrorMessage() {
     const errorDiv = document.getElementById('error-message');
     if (errorDiv) {
-        errorDiv.style.display = 'none';
+        errorDiv.style.opacity = '0';
+        setTimeout(() => {
+            errorDiv.style.display = 'none';
+        }, 300);
     }
 }
 
+// 接続成功時の処理
 socket.on('connect', () => {
     console.log('サーバーに接続しました');
+    connectionAttempts = 0;
     hideErrorMessage();
+});
+
+// ページ読み込み時に接続を開始
+window.addEventListener('load', () => {
+    startConnection();
+});
+
+// ページがフォーカスを取得したときに再接続を試みる
+window.addEventListener('focus', () => {
+    if (!socket.connected) {
+        startConnection();
+    }
 });
 
 const canvas = document.getElementById('amidakuji-canvas');
